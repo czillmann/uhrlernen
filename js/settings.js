@@ -81,7 +81,7 @@ export function saveStarGoal(goal) {
    ========================================================= */
 
 export const DAYPARTS = [
-  { key: "morgen", name: "Morgen", emoji: "🌅", start: 6 },
+  { key: "morgen", name: "Morgens", emoji: "🌅", start: 6 },
   { key: "vormittag", name: "Vormittag", emoji: "🌤️", start: 9 },
   { key: "mittag", name: "Mittag", emoji: "☀️", start: 12 },
   { key: "nachmittag", name: "Nachmittag", emoji: "🌇", start: 14 },

@@ -7,6 +7,8 @@
 import { createClock } from "./clock.js";
 import { startQuiz, choiceGrid } from "./quiz.js";
 import { playCorrect, playWrong, playFanfare } from "./sound.js";
+import { addStars } from "./stars.js";
+import { celebrate } from "./celebrate.js";
 import {
   randInt,
   pick,
@@ -311,7 +313,7 @@ export function tageszeit(container, { goHome }) {
         options,
         columns: 2,
         answer,
-        reveal: `Das ist der <b>${cat.name}</b>.`,
+        reveal: `Das ist <b>${cat.name}</b>.`,
       });
     },
   });
@@ -455,13 +457,21 @@ export function stundenZuordnen(container, { goHome }) {
   });
 
   function finish() {
-    playFanfare();
+    // Vollständig gelöst = alles richtig -> Sterne gutschreiben
+    const res = addStars(3);
+    if (res.reached) celebrate(res.milestone);
+    else playFanfare();
+
     const done = document.createElement("div");
     done.className = "stunden__done";
 
     const title = document.createElement("div");
     title.className = "stunden__done-title";
     title.textContent = "🎉 Geschafft!";
+
+    const collected = document.createElement("div");
+    collected.className = "quiz__result-collected";
+    collected.innerHTML = `+3 ⭐ &nbsp;·&nbsp; gesammelt: <b>${res.total}</b> ⭐`;
 
     const again = document.createElement("button");
     again.className = "btn btn--primary";
@@ -476,7 +486,7 @@ export function stundenZuordnen(container, { goHome }) {
     home.textContent = "Zur Übersicht";
     home.addEventListener("click", goHome);
 
-    done.append(title, again, home);
+    done.append(title, collected, again, home);
     wrap.appendChild(done);
   }
 
@@ -555,8 +565,8 @@ export function zeitEintragen(container, { goHome }) {
       const withMinutes = s.difficulty > 1;
       const ph = withMinutes ? "z. B. 9:30" : "z. B. 9";
 
-      const row12 = buildInputRow("12-Stunden-Zeit", ph);
-      const row24 = buildInputRow("24-Stunden-Zeit", withMinutes ? "z. B. 21:30" : "z. B. 21");
+      const row12 = buildInputRow("Frühe Zeit", ph);
+      const row24 = buildInputRow("Späte Zeit", withMinutes ? "z. B. 21:30" : "z. B. 21");
       host.append(row12.el, row24.el);
 
       const check = document.createElement("button");
@@ -579,7 +589,7 @@ export function zeitEintragen(container, { goHome }) {
         row24.input.disabled = true;
 
         answer(ok12 && ok24, {
-          reveal: `12-Stunden: <b>${fmtUhr(h12, m)}</b><br>24-Stunden: <b>${fmtUhr(
+          reveal: `Frühe Zeit: <b>${fmtUhr(h12, m)}</b><br>Späte Zeit: <b>${fmtUhr(
             h24,
             m
           )}</b>`,
@@ -587,8 +597,19 @@ export function zeitEintragen(container, { goHome }) {
       }
 
       check.addEventListener("click", submit);
+      // Enter im frühen Feld: nicht abschicken, sondern zum späten Feld wechseln
+      row12.input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          row24.input.focus();
+        }
+      });
+      // Enter im späten Feld: Aufgabe prüfen
       row24.input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") submit();
+        if (e.key === "Enter") {
+          e.preventDefault();
+          submit();
+        }
       });
 
       host.appendChild(check);
@@ -665,7 +686,7 @@ export function digitalTageszeit(container, { goHome }) {
         options,
         columns: 2,
         answer,
-        reveal: `Das ist der <b>${correct.name}</b>.`,
+        reveal: `Das ist <b>${correct.name}</b>.`,
       });
     },
   });
@@ -724,7 +745,7 @@ export function tageszeitAktivitaet(container, { goHome }) {
         options,
         columns: 2,
         answer,
-        reveal: `Das ist der <b>${cat.name}</b>.`,
+        reveal: `Das ist <b>${cat.name}</b>.`,
       });
     },
   });
@@ -764,8 +785,8 @@ export function gemischteUhr(container, { goHome }) {
         q.textContent = "Trage beide Zeiten ein:";
         host.appendChild(q);
 
-        const row12 = buildInputRow("12-Stunden-Zeit", withMin ? "z. B. 9:30" : "z. B. 9");
-        const row24 = buildInputRow("24-Stunden-Zeit", withMin ? "z. B. 21:30" : "z. B. 21");
+        const row12 = buildInputRow("Frühe Zeit", withMin ? "z. B. 9:30" : "z. B. 9");
+        const row24 = buildInputRow("Späte Zeit", withMin ? "z. B. 21:30" : "z. B. 21");
         host.append(row12.el, row24.el);
 
         const check = mkCheckButton();
@@ -778,15 +799,25 @@ export function gemischteUhr(container, { goHome }) {
           row24.mark(ok24);
           lockInputs(check, [row12.input, row24.input]);
           answer(ok12 && ok24, {
-            reveal: `12-Stunden: <b>${fmtUhr(h12, m)}</b><br>24-Stunden: <b>${fmtUhr(
+            reveal: `Frühe Zeit: <b>${fmtUhr(h12, m)}</b><br>Späte Zeit: <b>${fmtUhr(
               h24,
               m
             )}</b>`,
           });
         }
         check.addEventListener("click", submit);
+        // Enter im frühen Feld: zum späten Feld wechseln statt abzuschicken
+        row12.input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            row24.input.focus();
+          }
+        });
         row24.input.addEventListener("keydown", (e) => {
-          if (e.key === "Enter") submit();
+          if (e.key === "Enter") {
+            e.preventDefault();
+            submit();
+          }
         });
         host.appendChild(check);
       } else if (type === "set") {
@@ -848,7 +879,7 @@ export function gemischteUhr(container, { goHome }) {
         host.appendChild(q);
 
         const row = buildInputRow(
-          range24 ? "24-Stunden-Zeit" : "Uhrzeit",
+          range24 ? "Späte Zeit" : "Uhrzeit",
           withMin ? "z. B. 7:30" : "z. B. 7"
         );
         host.appendChild(row.el);
@@ -865,7 +896,10 @@ export function gemischteUhr(container, { goHome }) {
         }
         check.addEventListener("click", submit);
         row.input.addEventListener("keydown", (e) => {
-          if (e.key === "Enter") submit();
+          if (e.key === "Enter") {
+            e.preventDefault();
+            submit();
+          }
         });
         host.appendChild(check);
       }

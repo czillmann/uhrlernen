@@ -4,7 +4,7 @@
    erneuert wird.
    ========================================================= */
 
-const CACHE_VERSION = "uhr-lernen-v23";
+const CACHE_VERSION = "uhr-lernen-v29";
 
 const ASSETS = [
   "./",
@@ -55,7 +55,9 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return; // fremde Anfragen normal durchlassen
 
   event.respondWith(
-    fetch(event.request)
+    // {cache: "no-store"} umgeht den Browser-HTTP-Cache, damit immer die
+    // aktuelle Version vom Server kommt (auch importierte Module ohne ?v=).
+    fetch(event.request, { cache: "no-store" })
       .then((response) => {
         // frische Antwort in den Cache legen (für offline)
         if (response.ok) {

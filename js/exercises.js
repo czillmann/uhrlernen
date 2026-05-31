@@ -106,10 +106,10 @@ export const exercises = [
   },
   {
     id: "zeit-eintragen",
-    name: "12h & 24h",
+    name: "Frühe & späte Zeit",
     emoji: "📝",
     color: "#e76f51",
-    hint: "Trage die 12- und 24-Stunden-Zeit ein.",
+    hint: "Trage die frühe und späte Zeit ein.",
     mount: zeitEintragen,
   },
   {
