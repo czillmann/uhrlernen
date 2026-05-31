@@ -82,11 +82,11 @@ export function saveStarGoal(goal) {
 
 export const DAYPARTS = [
   { key: "morgen", name: "Morgens", emoji: "🌅", start: 6 },
-  { key: "vormittag", name: "Vormittag", emoji: "🌤️", start: 9 },
-  { key: "mittag", name: "Mittag", emoji: "☀️", start: 12 },
-  { key: "nachmittag", name: "Nachmittag", emoji: "🌇", start: 14 },
-  { key: "abend", name: "Abend", emoji: "🌆", start: 18 },
-  { key: "nacht", name: "Nacht", emoji: "🌙", start: 22 },
+  { key: "vormittag", name: "Vormittags", emoji: "🌤️", start: 9 },
+  { key: "mittag", name: "Mittags", emoji: "☀️", start: 12 },
+  { key: "nachmittag", name: "Nachmittags", emoji: "🌇", start: 14 },
+  { key: "abend", name: "Abends", emoji: "🌆", start: 18 },
+  { key: "nacht", name: "Nachts", emoji: "🌙", start: 22 },
 ];
 
 /** Tageszeiten mit den gespeicherten Start-Stunden. */

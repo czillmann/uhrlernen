@@ -28,6 +28,23 @@ import {
 
 const ROUNDS = 8;
 
+/**
+ * Erzeugt einen Generator, der nie zweimal hintereinander denselben Wert
+ * liefert. `keyOf` bestimmt, was als "gleiche Aufgabe" gilt. Es wird bis zu
+ * `tries`-mal neu gewürfelt, damit es bei wenigen Möglichkeiten nicht hängt.
+ */
+function nonRepeating(generate, keyOf, tries = 60) {
+  let last = null;
+  return () => {
+    let value = generate();
+    for (let i = 0; i < tries && keyOf(value) === last; i++) {
+      value = generate();
+    }
+    last = keyOf(value);
+    return value;
+  };
+}
+
 /** Kleiner Tageszeit-Hinweis unter der Uhr (nur im 24h-Modus). */
 function dayPartHint(h24) {
   const dp = dayPartFor(h24);
@@ -52,11 +69,12 @@ function clockPrompt(clockEl, range24, h24) {
    format(h,m)-> Beschriftung (deutsch oder digital)
    --------------------------------------------------------- */
 function readingGame(container, goHome, { genTime, format }) {
+  const nextTarget = nonRepeating(genTime, (t) => `${t.h}:${t.m}`);
   startQuiz(container, {
     total: ROUNDS,
     goHome,
     buildRound(host, { answer }) {
-      const target = genTime();
+      const target = nextTarget();
       const correctLabel = format(target.h, target.m);
 
       // Uhr als Frage
@@ -91,12 +109,13 @@ function readingGame(container, goHome, { genTime, format }) {
    (Schwierigkeit + 12/24h) beachtet. Digitale Antworten.
    --------------------------------------------------------- */
 function generalReadingGame(container, goHome) {
+  const nextTarget = nonRepeating(genTime, (t) => `${t.h}:${t.m}`);
   startQuiz(container, {
     total: ROUNDS,
     goHome,
     buildRound(host, { answer }) {
       const range24 = getSettings().range24;
-      const target = genTime();
+      const target = nextTarget();
       const correctLabel = fmtDigital(target.h, target.m, range24);
 
       const clock = createClock({ size: 230, interactive: false });
@@ -173,12 +192,13 @@ export function uhrLesen(container, { goHome }) {
    6) Uhr stellen – Zeiger auf die gesuchte Zeit ziehen
    --------------------------------------------------------- */
 export function uhrStellen(container, { goHome }) {
+  const nextTarget = nonRepeating(genTime, (t) => `${t.h}:${t.m}`);
   startQuiz(container, {
     total: ROUNDS,
     goHome,
     buildRound(host, { answer }) {
       const range24 = getSettings().range24;
-      const target = genTime();
+      const target = nextTarget();
       const targetLabel = fmtDigital(target.h, target.m, range24);
       // Klartext: bei 12h zusätzlich die deutsche Sprechweise
       const spoken = range24
@@ -225,12 +245,13 @@ export function uhrStellen(container, { goHome }) {
    7) Digital & Analog – passende Uhr zur digitalen Zeit wählen
    --------------------------------------------------------- */
 export function digitalAnalog(container, { goHome }) {
+  const nextTarget = nonRepeating(genTime, (t) => `${t.h % 12}:${t.m}`);
   startQuiz(container, {
     total: ROUNDS,
     goHome,
     buildRound(host, { answer }) {
       const range24 = getSettings().range24;
-      const target = genTime();
+      const target = nextTarget();
       const targetLabel = fmtDigital(target.h, target.m, range24);
 
       // Frage: große digitale Zeit
@@ -284,10 +305,8 @@ export function digitalAnalog(container, { goHome }) {
    Nutzt die in den Einstellungen konfigurierten Tageszeiten.
    --------------------------------------------------------- */
 export function tageszeit(container, { goHome }) {
-  startQuiz(container, {
-    total: ROUNDS,
-    goHome,
-    buildRound(host, { answer }) {
+  const nextRound = nonRepeating(
+    () => {
       const ranges = dayPartRanges();
       const cat = pick(ranges);
       // zufällige Stunde innerhalb dieser Tageszeit (auch über Mitternacht)
@@ -295,15 +314,25 @@ export function tageszeit(container, { goHome }) {
       const hour24 = (cat.start + randInt(0, span - 1)) % 24;
       // Minuten gemäß Schwierigkeitsstufe
       const minutes = MINUTE_SETS[getSettings().difficulty] || MINUTE_SETS[4];
-      const m = pick(minutes);
+      return { ranges, cat, hour24, m: pick(minutes) };
+    },
+    (r) => `${r.cat.key}:${r.hour24}:${r.m}`
+  );
+  startQuiz(container, {
+    total: ROUNDS,
+    goHome,
+    buildRound(host, { answer }) {
+      const { ranges, cat, hour24, m } = nextRound();
 
       const scene = document.createElement("div");
       scene.className = "scene";
       scene.innerHTML = `<div class="scene__emoji">${cat.emoji}</div>
         <div class="scene__time">${String(hour24).padStart(2, "0")}:${String(m).padStart(2, "0")} Uhr</div>`;
 
+      // Ab Stufe 2 keine Emojis auf den Buttons (sonst zu leicht ableitbar)
+      const showIcons = getSettings().difficulty <= 1;
       const options = ranges.map((t) => ({
-        label: `${t.emoji} ${t.name}`,
+        label: showIcons ? `${t.emoji} ${t.name}` : t.name,
         correct: t.key === cat.key,
       }));
 
@@ -528,18 +557,25 @@ function fmtUhr(h, m) {
 }
 
 export function zeitEintragen(container, { goHome }) {
+  const nextRound = nonRepeating(
+    () => {
+      const minutes = MINUTE_SETS[getSettings().difficulty] || MINUTE_SETS[4];
+      const h12 = randInt(1, 11); // 12 wird ausgelassen (0/24 wäre mehrdeutig)
+      return {
+        m: pick(minutes),
+        h12,
+        h24: h12 + 12, // 13..23
+        showDigital: Math.random() < 0.5,
+      };
+    },
+    (r) => `${r.h12}:${r.m}`
+  );
   startQuiz(container, {
     total: ROUNDS,
     goHome,
     buildRound(host, { answer }) {
       const s = getSettings();
-      const minutes = MINUTE_SETS[s.difficulty] || MINUTE_SETS[4];
-      const m = pick(minutes);
-      const h12 = randInt(1, 11); // 12 wird ausgelassen (0/24 wäre mehrdeutig)
-      const h24 = h12 + 12; // 13..23
-
-      // Anzeige abwechselnd analog oder digital
-      const showDigital = Math.random() < 0.5;
+      const { m, h12, h24, showDigital } = nextRound();
 
       const prompt = document.createElement("div");
       prompt.className = "enter-prompt";
@@ -658,14 +694,19 @@ function buildInputRow(labelText, placeholder) {
    ist das? Nutzt die in den Einstellungen konfigurierten Grenzen.
    --------------------------------------------------------- */
 export function digitalTageszeit(container, { goHome }) {
+  const nextRound = nonRepeating(
+    () => {
+      const minutes = MINUTE_SETS[getSettings().difficulty] || MINUTE_SETS[4];
+      return { hour24: randInt(0, 23), m: pick(minutes) };
+    },
+    (r) => `${r.hour24}:${r.m}`
+  );
   startQuiz(container, {
     total: ROUNDS,
     goHome,
     buildRound(host, { answer }) {
       const parts = getDayParts();
-      const minutes = MINUTE_SETS[getSettings().difficulty] || MINUTE_SETS[4];
-      const hour24 = randInt(0, 23);
-      const m = pick(minutes);
+      const { hour24, m } = nextRound();
       const correct = dayPartFor(hour24);
 
       const prompt = document.createElement("div");
@@ -709,16 +750,22 @@ const ACTIVITIES = {
 };
 
 export function tageszeitAktivitaet(container, { goHome }) {
-  startQuiz(container, {
-    total: ROUNDS,
-    goHome,
-    buildRound(host, { answer }) {
+  const nextRound = nonRepeating(
+    () => {
       const ranges = dayPartRanges();
       const cat = pick(ranges);
       const span = ((cat.end - cat.start + 24) % 24) + 1;
       const hour24 = (cat.start + randInt(0, span - 1)) % 24;
       const minutes = MINUTE_SETS[getSettings().difficulty] || MINUTE_SETS[4];
-      const m = pick(minutes);
+      return { ranges, cat, hour24, m: pick(minutes) };
+    },
+    (r) => `${r.cat.key}:${r.hour24}:${r.m}`
+  );
+  startQuiz(container, {
+    total: ROUNDS,
+    goHome,
+    buildRound(host, { answer }) {
+      const { ranges, cat, hour24, m } = nextRound();
       const activity = pick(ACTIVITIES[cat.key] || ["⏰"]);
 
       // Uhr + Aktivitätsbild nebeneinander
@@ -734,8 +781,10 @@ export function tageszeitAktivitaet(container, { goHome }) {
 
       scene.append(clock.el, pic);
 
+      // Ab Stufe 2 keine Emojis auf den Buttons
+      const showIcons = getSettings().difficulty <= 1;
       const options = ranges.map((t) => ({
-        label: `${t.emoji} ${t.name}`,
+        label: showIcons ? `${t.emoji} ${t.name}` : t.name,
         correct: t.key === cat.key,
       }));
 
@@ -761,20 +810,47 @@ export function tageszeitAktivitaet(container, { goHome }) {
    --------------------------------------------------------- */
 export function gemischteUhr(container, { goHome }) {
   const TYPES = ["both", "set", "read"];
+  // Aufgabe (Typ + Werte) vorab erzeugen, nie zweimal dieselbe hintereinander
+  const nextSpec = nonRepeating(
+    () => {
+      const s = getSettings();
+      const minutes = MINUTE_SETS[s.difficulty] || MINUTE_SETS[4];
+      const type = pick(TYPES);
+      if (type === "both") {
+        const h12 = randInt(1, 11);
+        return { type, m: pick(minutes), h12, h24: h12 + 12 };
+      } else if (type === "set") {
+        const range24 = s.range24;
+        return {
+          type,
+          range24,
+          m: pick(minutes),
+          h: range24 ? randInt(0, 23) : randInt(1, 12),
+        };
+      }
+      return { type: "read", range24: s.range24, target: genTime() };
+    },
+    (sp) =>
+      sp.type === "both"
+        ? `both:${sp.h12}:${sp.m}`
+        : sp.type === "set"
+        ? `set:${sp.h}:${sp.m}`
+        : `read:${sp.target.h}:${sp.target.m}`
+  );
   startQuiz(container, {
     total: ROUNDS,
     goHome,
     buildRound(host, { answer }) {
       const s = getSettings();
-      const minutes = MINUTE_SETS[s.difficulty] || MINUTE_SETS[4];
       const withMin = s.difficulty > 1;
-      const type = pick(TYPES);
+      const spec = nextSpec();
+      const type = spec.type;
 
       if (type === "both") {
         // ---- A) Analog ablesen -> 12h & 24h ----
-        const m = pick(minutes);
-        const h12 = randInt(1, 11); // 12 ausgelassen (0/24 mehrdeutig)
-        const h24 = h12 + 12;
+        const m = spec.m;
+        const h12 = spec.h12;
+        const h24 = spec.h24;
 
         const clock = createClock({ size: 200, interactive: false });
         clock.setTime(h12, m);
@@ -822,9 +898,9 @@ export function gemischteUhr(container, { goHome }) {
         host.appendChild(check);
       } else if (type === "set") {
         // ---- B) Digitalzeit -> Zeiger einstellen ----
-        const range24 = s.range24;
-        const m = pick(minutes);
-        const h = range24 ? randInt(0, 23) : randInt(1, 12);
+        const range24 = spec.range24;
+        const m = spec.m;
+        const h = spec.h;
         const targetLabel = fmtDigital(h, m, range24);
 
         const q = document.createElement("div");
@@ -865,8 +941,8 @@ export function gemischteUhr(container, { goHome }) {
         host.appendChild(check);
       } else {
         // ---- C) Analog ablesen -> Digitalzeit eintippen ----
-        const range24 = s.range24;
-        const target = genTime(); // beachtet Stufe + 12/24h
+        const range24 = spec.range24;
+        const target = spec.target;
         const clock = createClock({ size: 210, interactive: false });
         clock.setTime(target.h, target.m);
         host.appendChild(clock.el);
@@ -879,7 +955,7 @@ export function gemischteUhr(container, { goHome }) {
         host.appendChild(q);
 
         const row = buildInputRow(
-          range24 ? "Späte Zeit" : "Uhrzeit",
+          "Uhrzeit",
           withMin ? "z. B. 7:30" : "z. B. 7"
         );
         host.appendChild(row.el);
@@ -919,4 +995,544 @@ function mkCheckButton() {
 function lockInputs(button, inputs) {
   button.disabled = true;
   inputs.forEach((i) => (i.disabled = true));
+}
+
+/* =========================================================
+   Gemeinsame kleine Helfer für die neuen Übungen
+   ========================================================= */
+
+/** Mini-Helfer zum Element-Erzeugen (innerHTML, da wir den Inhalt steuern). */
+function ce(tag, cls, html) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (html != null) n.innerHTML = html;
+  return n;
+}
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+/** Minuten seit Mitternacht (zum Sortieren). */
+function minutesOfDay(t) {
+  return t.h * 60 + t.m;
+}
+
+/** "HH:MM" (immer zweistellig, 24h) – z. B. für Fahrpläne. */
+function fmtHHMM(min) {
+  const h = Math.floor(min / 60) % 24;
+  return `${pad2(h)}:${pad2(min % 60)}`;
+}
+
+/** n verschiedene Zeiten gemäß Einstellungen erzeugen. */
+function distinctTimes(n, keyOf) {
+  const key = keyOf || ((t) => `${t.h}:${t.m}`);
+  const seen = new Set();
+  const list = [];
+  let guard = 0;
+  while (list.length < n && guard++ < 400) {
+    const t = genTime();
+    const k = key(t);
+    if (!seen.has(k)) {
+      seen.add(k);
+      list.push(t);
+    }
+  }
+  return list;
+}
+
+/**
+ * Sortier-Runde per Drag & Drop: Karten oben im Pool, darunter nummerierte
+ * Kästchen (1..N). Die Karten werden in die richtige Reihenfolge gezogen,
+ * "Prüfen" wertet aus.
+ * cards: [{ el, key }] – el ist ein <button>, key eine Zahl.
+ */
+function orderingRound(host, answer, cards, { question, reveal }) {
+  if (question) host.appendChild(ce("div", "quiz__question", question));
+
+  const expected = [...cards].sort((a, b) => a.key - b.key);
+
+  const pool = ce("div", "order-pool");
+  const slotsWrap = ce("div", "order-slots");
+  const slots = cards.map((_, i) => {
+    const s = ce("div", "order-slot");
+    s.appendChild(ce("span", "order-slot__num", String(i + 1)));
+    s.card = null;
+    return s;
+  });
+  slots.forEach((s) => slotsWrap.appendChild(s));
+
+  const check = mkCheckButton();
+  check.disabled = true;
+  const updateCheck = () => {
+    check.disabled = slots.some((s) => !s.card);
+  };
+
+  function placeInPool(card) {
+    if (card.slot) {
+      card.slot.card = null;
+      card.slot = null;
+    }
+    card.el.classList.remove("in-slot");
+    pool.appendChild(card.el);
+  }
+  function placeInSlot(card, slot) {
+    if (slot.card && slot.card !== card) placeInPool(slot.card); // Platz frei machen
+    if (card.slot && card.slot !== slot) card.slot.card = null;
+    slot.card = card;
+    card.slot = slot;
+    card.el.classList.add("in-slot");
+    slot.appendChild(card.el);
+  }
+
+  function dropTargetAt(x, y) {
+    for (const s of slots) {
+      const r = s.getBoundingClientRect();
+      const m = 12;
+      if (x >= r.left - m && x <= r.right + m && y >= r.top - m && y <= r.bottom + m) {
+        return s;
+      }
+    }
+    return null; // sonst zurück in den Pool
+  }
+
+  cards.forEach((card) => {
+    card.el.classList.add("order-card");
+    let ox = 0;
+    let oy = 0;
+    let dragging = false;
+
+    card.el.addEventListener("pointerdown", (e) => {
+      if (card.el.disabled) return;
+      dragging = true;
+      const r = card.el.getBoundingClientRect();
+      ox = e.clientX - r.left;
+      oy = e.clientY - r.top;
+      card.el.setPointerCapture(e.pointerId);
+      card.el.classList.add("is-dragging");
+      card.el.style.width = r.width + "px";
+      card.el.style.height = r.height + "px";
+      card.el.style.position = "fixed";
+      card.el.style.left = e.clientX - ox + "px";
+      card.el.style.top = e.clientY - oy + "px";
+    });
+    card.el.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      card.el.style.left = e.clientX - ox + "px";
+      card.el.style.top = e.clientY - oy + "px";
+    });
+    function end(e) {
+      if (!dragging) return;
+      dragging = false;
+      card.el.classList.remove("is-dragging");
+      try {
+        card.el.releasePointerCapture(e.pointerId);
+      } catch (_) {}
+      const slot = dropTargetAt(e.clientX, e.clientY);
+      // Stil zurücksetzen
+      card.el.style.position = "";
+      card.el.style.left = "";
+      card.el.style.top = "";
+      card.el.style.width = "";
+      card.el.style.height = "";
+      if (slot) placeInSlot(card, slot);
+      else placeInPool(card);
+      updateCheck();
+    }
+    card.el.addEventListener("pointerup", end);
+    card.el.addEventListener("pointercancel", end);
+    pool.appendChild(card.el);
+  });
+
+  check.addEventListener("click", () => {
+    let correct = true;
+    slots.forEach((s, i) => {
+      const ok = s.card && s.card.key === expected[i].key;
+      s.classList.add(ok ? "is-correct" : "is-wrong");
+      if (!ok) correct = false;
+    });
+    cards.forEach((c) => (c.el.disabled = true));
+    check.disabled = true;
+    answer(correct, { reveal });
+  });
+
+  host.append(pool, slotsWrap, check);
+}
+
+/** Standard-Abschluss mit Sternen (für Nicht-Quiz-Übungen). */
+function finishWithStars(wrap, container, goHome, rerun, titleText) {
+  const res = addStars(3);
+  if (res.reached) celebrate(res.milestone);
+  else playFanfare();
+
+  const done = ce("div", "stunden__done");
+  done.append(ce("div", "stunden__done-title", titleText));
+  done.append(
+    ce("div", "quiz__result-collected", `+3 ⭐ &nbsp;·&nbsp; gesammelt: <b>${res.total}</b> ⭐`)
+  );
+  const again = ce("button", "btn btn--primary", "Nochmal");
+  again.addEventListener("click", () => {
+    container.innerHTML = "";
+    rerun();
+  });
+  const home = ce("button", "btn btn--light", "Zur Übersicht");
+  home.addEventListener("click", goHome);
+  done.append(again, home);
+  wrap.appendChild(done);
+}
+
+/* =========================================================
+   KATEGORIE 3 – Spielerische Formate
+   ========================================================= */
+
+/* 14) Memory – gleiche Zeit als Uhr und als Zahl finden */
+export function memory(container, { goHome }) {
+  const range24 = getSettings().range24;
+  const wrap = ce("div", "memory");
+  wrap.appendChild(ce("div", "quiz__question", "Finde die Paare: gleiche Zeit als Uhr und als Zahl."));
+  const status = ce("div", "stunden__status", "");
+  wrap.appendChild(status);
+
+  const times = distinctTimes(4, (t) => `${t.h % 12}:${t.m}`);
+  let deck = [];
+  times.forEach((t, i) => {
+    deck.push({ pair: i, kind: "analog", t });
+    deck.push({ pair: i, kind: "digital", t });
+  });
+  deck = shuffle(deck);
+
+  const grid = ce("div", "memory-grid");
+  let first = null;
+  let lock = false;
+  let matched = 0;
+  let moves = 0;
+
+  const updateStatus = () => {
+    status.textContent = `Paare: ${matched} / 4 · Versuche: ${moves}`;
+  };
+  const reveal = (card, on) => {
+    card.revealed = on;
+    card.el.classList.toggle("is-up", on);
+  };
+
+  deck.forEach((card) => {
+    const el = ce("button", "mcard");
+    el.appendChild(ce("div", "mcard__back", "❓"));
+    const front = ce("div", "mcard__front");
+    if (card.kind === "analog") {
+      const c = createClock({ size: 92, showNumbers: true, showTicks: false, interactive: false });
+      c.setTime(card.t.h, card.t.m);
+      front.appendChild(c.el);
+    } else {
+      front.classList.add("mcard__digi");
+      front.textContent = fmtDigital(card.t.h, card.t.m, range24);
+    }
+    el.appendChild(front);
+    card.el = el;
+
+    el.addEventListener("click", () => {
+      if (lock || card.done || card.revealed) return;
+      reveal(card, true);
+      if (!first) {
+        first = card;
+        return;
+      }
+      moves++;
+      updateStatus();
+      if (first.pair === card.pair) {
+        first.done = card.done = true;
+        matched++;
+        updateStatus();
+        playCorrect();
+        first = null;
+        if (matched === 4) {
+          finishWithStars(wrap, container, goHome, () => memory(container, { goHome }), "🎉 Alle Paare gefunden!");
+        }
+      } else {
+        playWrong();
+        lock = true;
+        const a = first;
+        const b = card;
+        first = null;
+        setTimeout(() => {
+          reveal(a, false);
+          reveal(b, false);
+          lock = false;
+        }, 900);
+      }
+    });
+    grid.appendChild(el);
+  });
+
+  updateStatus();
+  wrap.appendChild(grid);
+  container.appendChild(wrap);
+}
+
+/* 15) Sortieren – Uhren von früh nach spät antippen */
+export function sortieren(container, { goHome }) {
+  startQuiz(container, {
+    total: ROUNDS,
+    goHome,
+    buildRound(host, { answer }) {
+      const range24 = getSettings().range24;
+      const times = distinctTimes(4);
+      const cards = shuffle(times).map((t) => {
+        const el = ce("button", "order-card");
+        const c = createClock({ size: 104, showNumbers: true, showTicks: false, interactive: false });
+        c.setTime(t.h, t.m);
+        el.appendChild(c.el);
+        return { el, key: minutesOfDay(t) };
+      });
+      const correctList = [...times]
+        .sort((a, b) => minutesOfDay(a) - minutesOfDay(b))
+        .map((t) => fmtDigital(t.h, t.m, range24))
+        .join(", ");
+      orderingRound(host, answer, cards, {
+        question: "Ziehe die Uhren in die Kästchen – von früh nach spät.",
+        reveal: `Richtige Reihenfolge: <b>${correctList}</b>.`,
+      });
+    },
+  });
+}
+
+/* 16) Stoppuhr – bei genau X Sekunden stoppen */
+export function stoppuhr(container, { goHome }) {
+  const TOL = { 1: 1.0, 2: 0.7, 3: 0.5, 4: 0.3 };
+  startQuiz(container, {
+    total: ROUNDS,
+    goHome,
+    buildRound(host, { answer }) {
+      const tol = TOL[getSettings().difficulty] || 0.5;
+      const targetSec = randInt(3, 8);
+
+      host.appendChild(ce("div", "quiz__question", `Stoppe bei genau <b>${targetSec} Sekunden</b>!`));
+      const disp = ce("div", "stopwatch", "0.0");
+      host.appendChild(disp);
+      const btn = mkCheckButton();
+      btn.textContent = "Start";
+      host.appendChild(btn);
+
+      let startT = 0;
+      let raf = 0;
+      let running = false;
+      let stopped = false;
+
+      function frame() {
+        if (!disp.isConnected) {
+          cancelAnimationFrame(raf);
+          return;
+        }
+        disp.textContent = ((performance.now() - startT) / 1000).toFixed(1);
+        raf = requestAnimationFrame(frame);
+      }
+
+      btn.addEventListener("click", () => {
+        if (stopped) return;
+        if (!running) {
+          running = true;
+          btn.textContent = "Stopp!";
+          startT = performance.now();
+          raf = requestAnimationFrame(frame);
+        } else {
+          stopped = true;
+          cancelAnimationFrame(raf);
+          const elapsed = (performance.now() - startT) / 1000;
+          disp.textContent = elapsed.toFixed(1);
+          btn.disabled = true;
+          const ok = Math.abs(elapsed - targetSec) <= tol;
+          answer(ok, {
+            reveal: `Du hast bei <b>${elapsed.toFixed(1)} s</b> gestoppt. Ziel: ${targetSec} s (±${tol} s).`,
+          });
+        }
+      });
+    },
+  });
+}
+
+/* =========================================================
+   KATEGORIE 4 – Hören
+   ========================================================= */
+
+function speak(text) {
+  if (!("speechSynthesis" in window)) return;
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "de-DE";
+    u.rate = 0.9;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  } catch (_) {}
+}
+
+function spokenTime(t, range24) {
+  if (range24) return t.m ? `${t.h} Uhr ${t.m}` : `${t.h} Uhr`;
+  return germanTime(t.h, t.m);
+}
+
+/* 17) Hör zu – gesprochene Zeit an der Uhr einstellen */
+export function hoerZu(container, { goHome }) {
+  const nextTarget = nonRepeating(genTime, (t) => `${t.h}:${t.m}`);
+  const ttsOk = "speechSynthesis" in window;
+  startQuiz(container, {
+    total: ROUNDS,
+    goHome,
+    buildRound(host, { answer }) {
+      const range24 = getSettings().range24;
+      const target = nextTarget();
+      const phrase = spokenTime(target, range24);
+      speak(phrase);
+
+      host.appendChild(ce("div", "quiz__question", ttsOk ? "🔊 Hör zu und stelle die Uhr." : "Stelle die Uhr:"));
+      if (!ttsOk) host.appendChild(ce("div", "quiz__question", `<b>${phrase} Uhr</b>`));
+      else {
+        const replay = ce("button", "btn btn--light", "🔊 Nochmal hören");
+        replay.addEventListener("click", () => speak(phrase));
+        host.appendChild(replay);
+      }
+
+      const clock = createClock({
+        size: 230,
+        interactive: true,
+        snapMinutes: getSettings().difficulty === 4 ? 5 : 1,
+      });
+      clock.setTime(1, 0);
+      host.appendChild(clock.el);
+
+      const check = mkCheckButton();
+      check.addEventListener("click", () => {
+        check.disabled = true;
+        clock.setInteractive(false);
+        const t = clock.getTime();
+        const ok = sameHour12(t.h, target.h) && t.m === target.m;
+        answer(ok, { reveal: `Das war <b>${fmtDigital(target.h, target.m, range24)} Uhr</b>.` });
+      });
+      host.appendChild(check);
+    },
+  });
+}
+
+/* =========================================================
+   KATEGORIE 5 – Alltag
+   ========================================================= */
+
+/* 18) Fahrplan – wann fährt der nächste Bus? */
+export function fahrplan(container, { goHome }) {
+  const INTERVALS = { 1: 60, 2: 30, 3: 15 };
+  startQuiz(container, {
+    total: ROUNDS,
+    goHome,
+    buildRound(host, { answer }) {
+      const d = getSettings().difficulty;
+      const interval = INTERVALS[d] || pick([5, 10, 20]);
+      const base = randInt(6, 19) * 60;
+      const deps = [];
+      for (let i = 0; i < 5; i++) deps.push(base + i * interval);
+      const k = randInt(0, 3);
+      const now = deps[k] + Math.max(1, Math.floor(interval / 2));
+      const correct = deps[k + 1];
+
+      const prompt = ce("div", "fahrplan-wrap");
+      const table = ce("div", "fahrplan");
+      table.appendChild(ce("div", "fahrplan__title", "🚌 Abfahrten"));
+      deps.forEach((x) => table.appendChild(ce("div", "fahrplan__row", `${fmtHHMM(x)} Uhr`)));
+      prompt.appendChild(table);
+      prompt.appendChild(ce("div", "fahrplan__now", `Jetzt ist es <b>${fmtHHMM(now)} Uhr</b>.`));
+
+      const options = deps.map((x) => ({ label: `${fmtHHMM(x)} Uhr`, correct: x === correct }));
+
+      choiceGrid(host, {
+        prompt,
+        question: "Wann fährt der nächste Bus?",
+        options,
+        columns: 2,
+        answer,
+        reveal: `Der nächste Bus fährt um <b>${fmtHHMM(correct)} Uhr</b>.`,
+      });
+    },
+  });
+}
+
+/* 19) Tagesplan – Tagesablauf in die richtige Reihenfolge bringen */
+const TAGESPLAN = [
+  { emoji: "⏰", label: "Aufstehen", h: 6, m: 30 },
+  { emoji: "🥣", label: "Frühstück", h: 7, m: 0 },
+  { emoji: "🏫", label: "Schule", h: 8, m: 0 },
+  { emoji: "🍽️", label: "Mittagessen", h: 12, m: 30 },
+  { emoji: "📚", label: "Hausaufgaben", h: 15, m: 0 },
+  { emoji: "⚽", label: "Spielen", h: 16, m: 30 },
+  { emoji: "🛁", label: "Baden", h: 19, m: 0 },
+  { emoji: "😴", label: "Schlafen", h: 20, m: 30 },
+];
+
+export function tagesplan(container, { goHome }) {
+  const COUNT = { 1: 3, 2: 4, 3: 5, 4: 6 };
+  startQuiz(container, {
+    total: ROUNDS,
+    goHome,
+    buildRound(host, { answer }) {
+      const n = COUNT[getSettings().difficulty] || 4;
+      const chosen = shuffle(TAGESPLAN).slice(0, n);
+      const cards = shuffle(chosen).map((a) => {
+        const el = ce(
+          "button",
+          "order-card order-card--act",
+          `<div class="act-emoji">${a.emoji}</div><div class="act-label">${a.label}</div><div class="act-time">${a.h}:${pad2(a.m)} Uhr</div>`
+        );
+        return { el, key: a.h * 60 + a.m };
+      });
+      const correctList = [...chosen]
+        .sort((a, b) => a.h * 60 + a.m - (b.h * 60 + b.m))
+        .map((a) => a.label)
+        .join(" → ");
+      orderingRound(host, answer, cards, {
+        question: "Ziehe die Bilder in die Kästchen – in die richtige Reihenfolge (früh → spät).",
+        reveal: `Richtig: <b>${correctList}</b>.`,
+      });
+    },
+  });
+}
+
+/* 20) Wecker – den Wecker auf die gesuchte Zeit stellen */
+const WECKER_REASONS = [
+  "zum Aufstehen",
+  "für die Schule",
+  "für den Sport",
+  "zum Mittagessen",
+  "für den Film",
+  "für den Bus",
+];
+
+export function wecker(container, { goHome }) {
+  const nextTarget = nonRepeating(genTime, (t) => `${t.h}:${t.m}`);
+  startQuiz(container, {
+    total: ROUNDS,
+    goHome,
+    buildRound(host, { answer }) {
+      const range24 = getSettings().range24;
+      const target = nextTarget();
+      const label = fmtDigital(target.h, target.m, range24);
+      const reason = pick(WECKER_REASONS);
+
+      host.appendChild(ce("div", "quiz__question", `⏰ Stelle den Wecker ${reason} auf <b>${label} Uhr</b>.`));
+      const clock = createClock({
+        size: 240,
+        interactive: true,
+        snapMinutes: getSettings().difficulty === 4 ? 5 : 1,
+      });
+      clock.setTime(1, 0);
+      host.appendChild(clock.el);
+      host.appendChild(ce("div", "quiz__hint-small", "Ziehe die Zeiger mit dem Finger."));
+
+      const check = mkCheckButton();
+      check.addEventListener("click", () => {
+        check.disabled = true;
+        clock.setInteractive(false);
+        const t = clock.getTime();
+        const ok = sameHour12(t.h, target.h) && t.m === target.m;
+        answer(ok, { reveal: `Gesucht war <b>${label} Uhr</b>.` });
+      });
+      host.appendChild(check);
+    },
+  });
 }

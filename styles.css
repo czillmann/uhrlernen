@@ -1089,6 +1089,185 @@ body {
   background: #fdecea;
 }
 
+/* =========================================================
+   Memory (Paare finden)
+   ========================================================= */
+.memory {
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.memory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  width: 100%;
+}
+@media (max-width: 440px) {
+  .memory-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.mcard {
+  aspect-ratio: 1 / 1;
+  border: none;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.16);
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+}
+.mcard__back { font-size: 34px; }
+.mcard__front {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+.mcard.is-up { background: #fff; }
+.mcard.is-up .mcard__back { display: none; }
+.mcard.is-up .mcard__front { display: flex; }
+.mcard__digi { font-size: 24px; font-weight: 800; color: #1b2a52; }
+.mcard__front svg { width: 100%; height: auto; max-width: 84px; }
+
+/* =========================================================
+   Sortieren / Tagesplan (Reihenfolge antippen)
+   ========================================================= */
+.order-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  width: 100%;
+}
+@media (max-width: 480px) {
+  .order-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Pool (oben) und Zielkästchen (unten) */
+.order-pool,
+.order-slots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+.order-pool {
+  min-height: 80px;
+  padding: 8px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  margin-bottom: 8px;
+}
+.order-slots { margin-bottom: 12px; }
+.order-slot {
+  position: relative;
+  width: 120px;
+  min-height: 130px;
+  border-radius: 16px;
+  border: 2px dashed rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.order-slot__num {
+  position: absolute;
+  font-size: 34px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.35);
+}
+.order-slot.is-correct { border-color: #2ecc71; border-style: solid; }
+.order-slot.is-wrong { border-color: #e74c3c; border-style: solid; }
+.order-slot .order-card { width: 100%; }
+.order-card.is-dragging {
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.45);
+  touch-action: none;
+}
+.order-card { touch-action: none; }
+.order-card {
+  position: relative;
+  width: 120px;
+  box-sizing: border-box;
+  border: 3px solid transparent;
+  border-radius: 16px;
+  background: #fff;
+  color: #1b2a52;
+  font-family: inherit;
+  padding: 8px;
+  cursor: grab;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 120px;
+}
+.order-card:active { cursor: grabbing; }
+.order-card svg { width: 100%; height: auto; max-width: 110px; }
+.order-card.is-correct { border-color: #2ecc71; }
+.order-card.is-wrong { border-color: #e74c3c; }
+.order-card:disabled { cursor: default; }
+.order-badge {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #2ecc71;
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.order-card--act .act-emoji { font-size: 34px; }
+.order-card--act .act-label { font-weight: 700; }
+.order-card--act .act-time { font-size: 14px; opacity: 0.8; font-variant-numeric: tabular-nums; }
+
+/* =========================================================
+   Stoppuhr
+   ========================================================= */
+.stopwatch {
+  font-size: 60px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  text-shadow: var(--text-shadow);
+}
+
+/* =========================================================
+   Fahrplan
+   ========================================================= */
+.fahrplan-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.fahrplan {
+  background: rgba(255, 255, 255, 0.95);
+  color: #1b2a52;
+  border-radius: 16px;
+  padding: 10px 22px;
+  min-width: 150px;
+}
+.fahrplan__title { font-weight: 800; text-align: center; margin-bottom: 6px; }
+.fahrplan__row {
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 0;
+}
+.fahrplan__now { font-size: 17px; text-shadow: var(--text-shadow); }
+
 /* Knöpfe */
 .btn {
   border: none;
