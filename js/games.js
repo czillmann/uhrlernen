@@ -1401,7 +1401,6 @@ function spokenTime(t, range24) {
    daher ist der große "Zeit anhören"-Knopf die Hauptaktion. */
 export function hoerZu(container, { goHome }) {
   const nextTarget = nonRepeating(genTime, (t) => `${t.h}:${t.m}`);
-  const ttsOk = "speechSynthesis" in window;
   startQuiz(container, {
     total: ROUNDS,
     goHome,
@@ -1412,16 +1411,23 @@ export function hoerZu(container, { goHome }) {
 
       host.appendChild(ce("div", "quiz__question", "Höre die Uhrzeit und stelle die Uhr."));
 
-      if (ttsOk) {
-        const listen = ce("button", "btn btn--primary listen-btn", "🔊 Zeit anhören");
-        listen.addEventListener("click", () => speak(phrase));
-        host.appendChild(listen);
-        // Bester Versuch, beim Öffnen schon vorzulesen (auf iOS evtl. erst nach Tippen)
-        speak(phrase);
-      } else {
-        // Ohne Sprachausgabe: Zeit als Text zeigen (sonst nicht lösbar)
-        host.appendChild(ce("div", "quiz__question", `<b>${phrase} Uhr</b>`));
-      }
+      // Anhör-Knopf wird IMMER angezeigt (Ton startet erst beim Tippen – iOS-Regel)
+      const listen = ce("button", "btn btn--primary listen-btn", "🔊 Zeit anhören");
+      listen.addEventListener("click", () => speak(phrase));
+      host.appendChild(listen);
+
+      // Notfall: Zeit anzeigen (falls auf einem Gerät kein Ton möglich ist)
+      const textEl = ce("div", "quiz__question hoer-text", "");
+      const showBtn = ce("button", "btn btn--light", "👁 Zeit anzeigen");
+      showBtn.addEventListener("click", () => {
+        textEl.innerHTML = `<b>${phrase} Uhr</b>`;
+        showBtn.style.display = "none";
+      });
+      host.appendChild(showBtn);
+      host.appendChild(textEl);
+
+      // Bester Versuch, beim Öffnen vorzulesen (auf iOS evtl. erst nach Tippen)
+      speak(phrase);
 
       const clock = createClock({
         size: 230,

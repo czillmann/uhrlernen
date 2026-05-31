@@ -4,7 +4,7 @@
    erneuert wird.
    ========================================================= */
 
-const CACHE_VERSION = "uhr-lernen-v43";
+const CACHE_VERSION = "uhr-lernen-v45";
 
 const ASSETS = [
   "./",

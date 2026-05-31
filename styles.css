@@ -1117,20 +1117,20 @@ body {
    ========================================================= */
 .memory {
   width: 100%;
-  max-width: 460px;
+  max-width: min(94vw, 860px);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 .memory-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
+  gap: 16px;
   width: 100%;
 }
-@media (max-width: 440px) {
+@media (max-width: 520px) {
   .memory-grid { grid-template-columns: repeat(2, 1fr); }
 }
 .mcard {
@@ -1145,7 +1145,7 @@ body {
   justify-content: center;
   padding: 6px;
 }
-.mcard__back { font-size: 34px; }
+.mcard__back { font-size: 46px; }
 .mcard__front {
   display: none;
   align-items: center;
@@ -1155,8 +1155,8 @@ body {
 .mcard.is-up { background: #fff; }
 .mcard.is-up .mcard__back { display: none; }
 .mcard.is-up .mcard__front { display: flex; }
-.mcard__digi { font-size: 24px; font-weight: 800; color: #1b2a52; }
-.mcard__front svg { width: 100%; height: auto; max-width: 84px; }
+.mcard__digi { font-size: 34px; font-weight: 800; color: #1b2a52; }
+.mcard__front svg { width: 100% !important; height: auto !important; max-width: 170px; }
 
 /* =========================================================
    Sortieren / Tagesplan (Reihenfolge antippen)
