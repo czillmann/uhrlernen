@@ -70,7 +70,7 @@ body {
   align-items: center;
   gap: 12px 16px;
   margin: 2px 0 40px;
-  padding-right: 48px; /* Platz für das Zahnrad oben rechts */
+  padding-right: 100px; /* Platz für Vollbild- und Zahnrad-Knopf oben rechts */
   text-align: left;
 }
 
@@ -235,10 +235,10 @@ body {
   to { transform: scale(1); opacity: 1; }
 }
 
-.home__gear {
+.home__gear,
+.home__fs {
   position: absolute;
   top: calc(var(--safe-top) + 14px);
-  right: 16px;
   width: 42px;
   height: 42px;
   border-radius: 50%;
@@ -248,8 +248,14 @@ body {
   font-size: 22px;
   cursor: pointer;
   z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.home__gear:active { transform: scale(0.92); }
+.home__gear { right: 16px; }
+.home__fs { right: 66px; }
+.home__gear:active,
+.home__fs:active { transform: scale(0.92); }
 
 /* Tageszeit-Hinweis unter der Uhr (24h-Modus) */
 .clock-prompt {

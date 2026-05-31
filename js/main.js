@@ -80,6 +80,15 @@ function renderHome() {
   gear.setAttribute("aria-label", "Einstellungen");
   gear.addEventListener("click", openSettings);
 
+  // Vollbild-Knopf (nur wenn vom Browser unterstützt)
+  let fs = null;
+  if (fullscreenSupported()) {
+    fs = el("button", "home__fs", fullscreenIcon());
+    fs.type = "button";
+    fs.setAttribute("aria-label", "Vollbild");
+    fs.addEventListener("click", toggleFullscreen);
+  }
+
   // Kopf: horizontal – links Titel + Live-Uhr, rechts Stufe + Sterne
   const header = el("div", "home__header");
 
@@ -103,6 +112,7 @@ function renderHome() {
   header.append(brand, center, status);
 
   home.append(gear);
+  if (fs) home.append(fs);
 
   // App-Raster
   const grid = el("div", "grid");
@@ -295,6 +305,37 @@ function renderSettings() {
   view.append(bar, body);
   root.append(view);
 }
+
+/* ---------- Vollbild ---------- */
+
+function fullscreenSupported() {
+  const d = document.documentElement;
+  return !!(d.requestFullscreen || d.webkitRequestFullscreen);
+}
+
+function isFullscreen() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+
+function fullscreenIcon() {
+  return isFullscreen() ? "🗗" : "⛶";
+}
+
+function toggleFullscreen() {
+  const d = document;
+  if (!isFullscreen()) {
+    const el = d.documentElement;
+    (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
+  } else {
+    (d.exitFullscreen || d.webkitExitFullscreen)?.call(d);
+  }
+}
+
+// Icon aktualisieren, wenn sich der Vollbildmodus ändert
+document.addEventListener("fullscreenchange", () => {
+  const btn = document.querySelector(".home__fs");
+  if (btn) btn.textContent = fullscreenIcon();
+});
 
 function buildStarMeter() {
   const { total, current, goal } = starProgress();
