@@ -193,7 +193,8 @@ export function uhrStellen(container, { goHome }) {
         interactive: true,
         snapMinutes: snap,
       });
-      clock.setTime(12, 0);
+      // auf 1:00 vorstellen, damit beide Zeiger sichtbar sind (bei 12:00 überlappen sie)
+      clock.setTime(1, 0);
 
       const hint = document.createElement("div");
       hint.className = "quiz__hint-small";
@@ -813,7 +814,8 @@ export function gemischteUhr(container, { goHome }) {
           interactive: true,
           snapMinutes: s.difficulty === 4 ? 5 : 1,
         });
-        clock.setTime(12, 0);
+        // auf 1:00 vorstellen, damit beide Zeiger sichtbar sind (bei 12:00 überlappen sie)
+        clock.setTime(1, 0);
         host.appendChild(clock.el);
 
         const hint = document.createElement("div");

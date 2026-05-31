@@ -37,6 +37,45 @@ js/
 icons/                  App-Icons (PNG + SVG-Quellen)
 ```
 
+## Deployment auf fly.io
+
+Die App ist statisch und wird in einem schlanken **nginx-Container** ausgeliefert
+(`Dockerfile`, `nginx.conf`, `fly.toml`).
+
+Einmalig:
+
+```bash
+# flyctl installieren (macOS)
+brew install flyctl
+
+# anmelden
+fly auth login
+```
+
+App anlegen und deployen:
+
+```bash
+# 1) App-Namen festlegen – muss global eindeutig sein.
+#    Entweder fly.toml -> app = "..." anpassen,
+#    oder einen neuen Namen erzeugen lassen:
+fly launch --no-deploy --copy-config --name DEIN-EINDEUTIGER-NAME --region fra
+
+# 2) Deployen
+fly deploy
+```
+
+Danach ist die App unter `https://DEIN-NAME.fly.dev` erreichbar.
+
+Aktualisieren nach Änderungen: einfach erneut `fly deploy`.
+Logs ansehen: `fly logs` · Status: `fly status`.
+
+> Lokal testen wie in Produktion:
+> ```bash
+> docker build -t uhr-lernen .
+> docker run --rm -p 8090:8080 uhr-lernen
+> # -> http://localhost:8090
+> ```
+
 ## Neue Übung hinzufügen
 
 1. In `js/exercises.js` einen Eintrag im Array `exercises` ergänzen

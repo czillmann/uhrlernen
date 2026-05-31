@@ -1,0 +1,12 @@
+# Reduziert den Build-Kontext (diese Dateien werden nicht benötigt).
+# Hinweis: nginx.conf wird vom Dockerfile gebraucht und ist daher NICHT ausgeschlossen.
+.git
+.gitignore
+.dockerignore
+fly.toml
+node_modules
+package-lock.json
+*.log
+.DS_Store
+.vscode
+.idea
