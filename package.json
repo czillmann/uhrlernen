@@ -1,0 +1,9 @@
+{
+  "name": "uhr-lernen",
+  "version": "0.1.0",
+  "description": "PWA, mit der Grundschulkinder die Uhr lesen lernen.",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes serve . -l 8000"
+  }
+}
