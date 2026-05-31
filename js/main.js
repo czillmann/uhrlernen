@@ -17,6 +17,7 @@ import {
   saveStarGoal,
 } from "./settings.js";
 import { starProgress, getStars, resetStars } from "./stars.js";
+import { setCurrentExercise, getCompletion, resetCompletions } from "./stats.js";
 
 const root = document.getElementById("app");
 
@@ -302,6 +303,20 @@ function renderSettings() {
   }
   renderStarsSection();
 
+  // --- Durchläufe ---
+  body.append(el("div", "settings__label", "Durchläufe"));
+  const runsRow = el("div", "daypart");
+  runsRow.append(el("span", "daypart__name", "Gezählte Durchläufe der Übungen"));
+  const runsReset = el("button", "settings__reset", "Zurücksetzen");
+  runsReset.type = "button";
+  runsReset.addEventListener("click", () => {
+    if (window.confirm("Alle gezählten Durchläufe wirklich zurücksetzen?")) {
+      resetCompletions();
+    }
+  });
+  runsRow.append(runsReset);
+  body.append(runsRow);
+
   view.append(bar, body);
   root.append(view);
 }
@@ -373,6 +388,12 @@ function buildAppIcon(ex) {
     tile.appendChild(lock);
   }
 
+  // Badge: wie oft die Übung schon vollständig durchlaufen wurde
+  const done = getCompletion(ex.id);
+  if (done > 0) {
+    tile.appendChild(el("div", "app-icon__badge", done > 99 ? "99+" : String(done)));
+  }
+
   const label = el("div", "app-icon__label", ex.name);
 
   btn.append(tile, label);
@@ -390,6 +411,7 @@ function buildAppIcon(ex) {
 
 function renderExercise(ex) {
   stopClock();
+  setCurrentExercise(ex.id); // für die Durchlauf-Zählung
   root.innerHTML = "";
 
   const view = el("div", "exercise");

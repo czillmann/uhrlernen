@@ -19,6 +19,7 @@
 import { playCorrect, playWrong, playFanfare } from "./sound.js";
 import { addStars } from "./stars.js";
 import { celebrate } from "./celebrate.js";
+import { recordCompletion } from "./stats.js";
 
 export function startQuiz(container, config) {
   const total = config.total || 8;
@@ -132,6 +133,9 @@ export function startQuiz(container, config) {
 
     const ratio = score / total;
     const stars = ratio >= 0.9 ? 3 : ratio >= 0.6 ? 2 : 1;
+
+    // vollständigen Durchlauf zählen
+    recordCompletion();
 
     // Sterne gutschreiben und ggf. 100er-Marke feiern
     const res = addStars(stars);

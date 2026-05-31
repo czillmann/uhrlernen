@@ -4,7 +4,7 @@
    erneuert wird.
    ========================================================= */
 
-const CACHE_VERSION = "uhr-lernen-v38";
+const CACHE_VERSION = "uhr-lernen-v43";
 
 const ASSETS = [
   "./",
@@ -20,6 +20,7 @@ const ASSETS = [
   "./js/time.js",
   "./js/settings.js",
   "./js/stars.js",
+  "./js/stats.js",
   "./js/celebrate.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

@@ -9,6 +9,7 @@ import { startQuiz, choiceGrid } from "./quiz.js";
 import { playCorrect, playWrong, playFanfare } from "./sound.js";
 import { addStars } from "./stars.js";
 import { celebrate } from "./celebrate.js";
+import { recordCompletion } from "./stats.js";
 import {
   randInt,
   pick,
@@ -486,7 +487,8 @@ export function stundenZuordnen(container, { goHome }) {
   });
 
   function finish() {
-    // Vollständig gelöst = alles richtig -> Sterne gutschreiben
+    // Vollständig gelöst = alles richtig -> zählen + Sterne gutschreiben
+    recordCompletion();
     const res = addStars(3);
     if (res.reached) celebrate(res.milestone);
     else playFanfare();
@@ -653,8 +655,8 @@ export function zeitEintragen(container, { goHome }) {
   });
 }
 
-/** Baut eine beschriftete Eingabezeile mit "Uhr" und Markierung. */
-function buildInputRow(labelText, placeholder) {
+/** Baut eine beschriftete Eingabezeile mit Einheit (Standard "Uhr") und Markierung. */
+function buildInputRow(labelText, placeholder, suffixText = "Uhr") {
   const el = document.createElement("div");
   el.className = "enter-row";
 
@@ -674,7 +676,7 @@ function buildInputRow(labelText, placeholder) {
 
   const suffix = document.createElement("span");
   suffix.className = "enter-row__suffix";
-  suffix.textContent = "Uhr";
+  suffix.textContent = suffixText;
 
   field.append(input, suffix);
   el.append(label, field);
@@ -1048,6 +1050,10 @@ function distinctTimes(n, keyOf) {
  * cards: [{ el, key }] – el ist ein <button>, key eine Zahl.
  */
 function orderingRound(host, answer, cards, { question, reveal }) {
+  // Breiteren Container nutzen, damit die Karten in eine Reihe passen
+  const quizEl = host.closest(".quiz");
+  if (quizEl) quizEl.classList.add("quiz--wide");
+
   if (question) host.appendChild(ce("div", "quiz__question", question));
 
   const expected = [...cards].sort((a, b) => a.key - b.key);
@@ -1161,6 +1167,7 @@ function orderingRound(host, answer, cards, { question, reveal }) {
 
 /** Standard-Abschluss mit Sternen (für Nicht-Quiz-Übungen). */
 function finishWithStars(wrap, container, goHome, rerun, titleText) {
+  recordCompletion();
   const res = addStars(3);
   if (res.reached) celebrate(res.milestone);
   else playFanfare();
@@ -1354,14 +1361,33 @@ export function stoppuhr(container, { goHome }) {
    KATEGORIE 4 – Hören
    ========================================================= */
 
+/** Passende deutsche Stimme suchen (falls vorhanden). */
+function germanVoice() {
+  try {
+    return window.speechSynthesis.getVoices().find((v) => /de(-|_)/i.test(v.lang)) || null;
+  } catch (_) {
+    return null;
+  }
+}
+// Stimmen vorladen (manche Browser füllen die Liste erst asynchron)
+if ("speechSynthesis" in window) {
+  try {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.addEventListener("voiceschanged", () => window.speechSynthesis.getVoices());
+  } catch (_) {}
+}
+
 function speak(text) {
   if (!("speechSynthesis" in window)) return;
   try {
+    const sy = window.speechSynthesis;
+    sy.cancel(); // laufende Ausgabe stoppen
     const u = new SpeechSynthesisUtterance(text);
     u.lang = "de-DE";
     u.rate = 0.9;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
+    const v = germanVoice();
+    if (v) u.voice = v;
+    sy.speak(u);
   } catch (_) {}
 }
 
@@ -1370,7 +1396,9 @@ function spokenTime(t, range24) {
   return germanTime(t.h, t.m);
 }
 
-/* 17) Hör zu – gesprochene Zeit an der Uhr einstellen */
+/* 17) Hör zu – gesprochene Zeit anhören und an der Uhr einstellen.
+   Wichtig: Auf Tablets/iOS darf Ton nur nach einer Berührung abspielen,
+   daher ist der große "Zeit anhören"-Knopf die Hauptaktion. */
 export function hoerZu(container, { goHome }) {
   const nextTarget = nonRepeating(genTime, (t) => `${t.h}:${t.m}`);
   const ttsOk = "speechSynthesis" in window;
@@ -1381,14 +1409,18 @@ export function hoerZu(container, { goHome }) {
       const range24 = getSettings().range24;
       const target = nextTarget();
       const phrase = spokenTime(target, range24);
-      speak(phrase);
 
-      host.appendChild(ce("div", "quiz__question", ttsOk ? "🔊 Hör zu und stelle die Uhr." : "Stelle die Uhr:"));
-      if (!ttsOk) host.appendChild(ce("div", "quiz__question", `<b>${phrase} Uhr</b>`));
-      else {
-        const replay = ce("button", "btn btn--light", "🔊 Nochmal hören");
-        replay.addEventListener("click", () => speak(phrase));
-        host.appendChild(replay);
+      host.appendChild(ce("div", "quiz__question", "Höre die Uhrzeit und stelle die Uhr."));
+
+      if (ttsOk) {
+        const listen = ce("button", "btn btn--primary listen-btn", "🔊 Zeit anhören");
+        listen.addEventListener("click", () => speak(phrase));
+        host.appendChild(listen);
+        // Bester Versuch, beim Öffnen schon vorzulesen (auf iOS evtl. erst nach Tippen)
+        speak(phrase);
+      } else {
+        // Ohne Sprachausgabe: Zeit als Text zeigen (sonst nicht lösbar)
+        host.appendChild(ce("div", "quiz__question", `<b>${phrase} Uhr</b>`));
       }
 
       const clock = createClock({
@@ -1533,6 +1565,206 @@ export function wecker(container, { goHome }) {
         answer(ok, { reveal: `Gesucht war <b>${label} Uhr</b>.` });
       });
       host.appendChild(check);
+    },
+  });
+}
+
+/* =========================================================
+   KATEGORIE 1 – Zeitspannen & Rechnen (erst ab Stufe 4)
+   ========================================================= */
+
+/** Minuten addieren/subtrahieren auf der 12-Stunden-Uhr (Ergebnis 1..12). */
+function addMinutes(h, m, delta) {
+  const total = ((((h % 12) * 60 + m + delta) % 720) + 720) % 720;
+  let nh = Math.floor(total / 60);
+  if (nh === 0) nh = 12;
+  return { h: nh, m: total % 60 };
+}
+
+/* 21) Zeit rechnen – "Wie spät ist es in/vor X Minuten?" */
+export function rechnenZeit(container, { goHome }) {
+  const next = nonRepeating(
+    () => ({
+      h: randInt(1, 12),
+      m: pick([0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]),
+      delta: pick([5, 10, 15, 20, 30, 45]),
+      dir: pick([1, -1]),
+    }),
+    (r) => `${r.h}:${r.m}:${r.delta}:${r.dir}`
+  );
+  startQuiz(container, {
+    total: ROUNDS,
+    goHome,
+    buildRound(host, { answer }) {
+      const { h, m, delta, dir } = next();
+      const res = addMinutes(h, m, delta * dir);
+
+      const clock = createClock({ size: 200, interactive: false });
+      clock.setTime(h, m);
+      host.appendChild(clock.el);
+
+      const word = dir > 0 ? `in ${delta} Minuten` : `vor ${delta} Minuten`;
+      host.appendChild(ce("div", "quiz__question", `Wie spät ist es <b>${word}</b>?`));
+
+      const row = buildInputRow("Antwort", "z. B. 4:15");
+      host.appendChild(row.el);
+
+      const check = mkCheckButton();
+      function submit() {
+        const a = parseTimeInput(row.input.value);
+        const ok = a && a.h === res.h && a.m === res.m;
+        row.mark(ok);
+        lockInputs(check, [row.input]);
+        answer(ok, { reveal: `Richtig: <b>${res.h}:${pad2(res.m)} Uhr</b>.` });
+      }
+      check.addEventListener("click", submit);
+      row.input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          submit();
+        }
+      });
+      host.appendChild(check);
+    },
+  });
+}
+
+/* 22) Wie lange? – Dauer zwischen zwei Uhrzeiten in Minuten */
+export function dauer(container, { goHome }) {
+  const next = nonRepeating(
+    () => ({
+      startH: randInt(1, 11),
+      startM: pick([0, 15, 30, 45]),
+      delta: pick([15, 30, 45, 60, 75, 90]),
+    }),
+    (r) => `${r.startH}:${r.startM}:${r.delta}`
+  );
+  startQuiz(container, {
+    total: ROUNDS,
+    goHome,
+    buildRound(host, { answer }) {
+      const { startH, startM, delta } = next();
+      const end = addMinutes(startH, startM, delta);
+
+      const duo = ce("div", "duo-clock");
+      [
+        ["Start", startH, startM],
+        ["Ende", end.h, end.m],
+      ].forEach(([lab, hh, mm]) => {
+        const box = ce("div", "duo-clock__item");
+        const c = createClock({ size: 150, interactive: false });
+        c.setTime(hh, mm);
+        box.appendChild(c.el);
+        box.appendChild(ce("div", "duo-clock__label", `${lab}: ${hh}:${pad2(mm)} Uhr`));
+        duo.appendChild(box);
+      });
+      host.appendChild(duo);
+
+      host.appendChild(ce("div", "quiz__question", "Wie viele Minuten vergehen?"));
+      const row = buildInputRow("Dauer", "z. B. 30", "Minuten");
+      host.appendChild(row.el);
+
+      const check = mkCheckButton();
+      function submit() {
+        const n = parseInt(row.input.value, 10);
+        const ok = n === delta;
+        row.mark(ok);
+        lockInputs(check, [row.input]);
+        answer(ok, { reveal: `Es vergehen <b>${delta} Minuten</b>.` });
+      }
+      check.addEventListener("click", submit);
+      row.input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          submit();
+        }
+      });
+      host.appendChild(check);
+    },
+  });
+}
+
+/* =========================================================
+   KATEGORIE 2 – Zeiteinheiten (erst ab Stufe 4)
+   ========================================================= */
+
+const UNIT_TASKS = [
+  () => ({ q: "1 Stunde = ? Minuten", a: 60, suf: "Minuten" }),
+  () => {
+    const n = randInt(2, 5);
+    return { q: `${n} Stunden = ? Minuten`, a: n * 60, suf: "Minuten" };
+  },
+  () => {
+    const n = randInt(2, 5);
+    return { q: `${n * 60} Minuten = ? Stunden`, a: n, suf: "Stunden" };
+  },
+  () => ({ q: "1 Minute = ? Sekunden", a: 60, suf: "Sekunden" }),
+  () => ({ q: "1 Tag = ? Stunden", a: 24, suf: "Stunden" }),
+  () => ({ q: "Eine halbe Stunde = ? Minuten", a: 30, suf: "Minuten" }),
+  () => ({ q: "Eine Viertelstunde = ? Minuten", a: 15, suf: "Minuten" }),
+];
+
+/* 23) Einheiten umrechnen */
+export function einheiten(container, { goHome }) {
+  const next = nonRepeating(() => pick(UNIT_TASKS)(), (u) => u.q);
+  startQuiz(container, {
+    total: ROUNDS,
+    goHome,
+    buildRound(host, { answer }) {
+      const u = next();
+      host.appendChild(ce("div", "quiz__question", u.q));
+      const row = buildInputRow("Antwort", "z. B. 60", u.suf);
+      host.appendChild(row.el);
+
+      const check = mkCheckButton();
+      function submit() {
+        const n = parseInt(row.input.value, 10);
+        const ok = n === u.a;
+        row.mark(ok);
+        lockInputs(check, [row.input]);
+        answer(ok, { reveal: `Richtig: <b>${u.a} ${u.suf}</b>.` });
+      }
+      check.addEventListener("click", submit);
+      row.input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          submit();
+        }
+      });
+      host.appendChild(check);
+    },
+  });
+}
+
+const ZEIT_FAKTEN = [
+  { q: "Wie viele Stunden hat ein Tag?", a: 24, opts: [12, 24, 60, 7] },
+  { q: "Wie viele Minuten hat eine Stunde?", a: 60, opts: [24, 30, 60, 100] },
+  { q: "Wie viele Sekunden hat eine Minute?", a: 60, opts: [30, 60, 100, 24] },
+  { q: "Wie viele Tage hat eine Woche?", a: 7, opts: [5, 7, 10, 12] },
+  { q: "Wie viele Monate hat ein Jahr?", a: 12, opts: [7, 10, 12, 24] },
+  { q: "Wie viele Minuten hat eine halbe Stunde?", a: 30, opts: [15, 30, 45, 60] },
+  { q: "Wie viele Minuten hat eine Viertelstunde?", a: 15, opts: [10, 15, 20, 30] },
+];
+
+/* 24) Zeit-Wissen – kleine Faktenfragen */
+export function zeitWissen(container, { goHome }) {
+  const next = nonRepeating(() => pick(ZEIT_FAKTEN), (f) => f.q);
+  startQuiz(container, {
+    total: ROUNDS,
+    goHome,
+    buildRound(host, { answer }) {
+      const f = next();
+      const options = shuffle(f.opts).map((o) => ({
+        label: String(o),
+        correct: o === f.a,
+      }));
+      choiceGrid(host, {
+        question: f.q,
+        options,
+        columns: 2,
+        answer,
+        reveal: `Richtig: <b>${f.a}</b>.`,
+      });
     },
   });
 }

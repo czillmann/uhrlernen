@@ -32,6 +32,10 @@ import {
   fahrplan,
   tagesplan,
   wecker,
+  rechnenZeit,
+  dauer,
+  einheiten,
+  zeitWissen,
 } from "./games.js";
 
 export const exercises = [
@@ -199,6 +203,42 @@ export const exercises = [
     color: "#f15bb5",
     hint: "Stelle den Wecker auf die richtige Zeit.",
     mount: wecker,
+  },
+  {
+    id: "rechnen-zeit",
+    name: "Zeit rechnen",
+    emoji: "➕",
+    color: "#0aa6b7",
+    hint: "Wie spät ist es in/vor X Minuten?",
+    minLevel: 4,
+    mount: rechnenZeit,
+  },
+  {
+    id: "dauer",
+    name: "Wie lange?",
+    emoji: "⏳",
+    color: "#7209b7",
+    hint: "Wie viel Zeit vergeht zwischen zwei Uhren?",
+    minLevel: 4,
+    mount: dauer,
+  },
+  {
+    id: "einheiten",
+    name: "Einheiten",
+    emoji: "🔁",
+    color: "#3a0ca3",
+    hint: "Stunden, Minuten und Sekunden umrechnen.",
+    minLevel: 4,
+    mount: einheiten,
+  },
+  {
+    id: "zeit-wissen",
+    name: "Zeit-Wissen",
+    emoji: "❓",
+    color: "#4361ee",
+    hint: "Wie viele Stunden, Minuten, Tage …?",
+    minLevel: 4,
+    mount: zeitWissen,
   },
 ];
 
