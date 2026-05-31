@@ -80,15 +80,27 @@ function renderHome() {
   gear.setAttribute("aria-label", "Einstellungen");
   gear.addEventListener("click", openSettings);
 
-  // Kopf mit Live-Uhr
+  // Kopf: horizontal – links Titel + Live-Uhr, rechts Stufe + Sterne
   const header = el("div", "home__header");
-  const clock = el("div", "home__clock");
-  const date = el("div", "home__date");
+
+  const brand = el("div", "home__brand");
   const title = el("div", "home__title", "Uhr lernen");
+  const now = el("div", "home__now");
+  const clock = el("span", "home__clock");
+  const date = el("span", "home__date");
+  now.append(clock, date);
+  brand.append(title, now);
+
+  const center = el("div", "home__center");
+  center.append(buildStarMeter());
+
+  const status = el("div", "home__status");
   const level = el("button", "home__level", settingsLabel());
   level.type = "button";
   level.addEventListener("click", openSettings);
-  header.append(clock, date, title, level, buildStarMeter());
+  status.append(level);
+
+  header.append(brand, center, status);
 
   home.append(gear);
 
